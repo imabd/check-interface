@@ -9,7 +9,7 @@ echo "-------------------------------------------"
 echo "1) Interface Checker"
 echo "2) OSPF Check"
 echo "3) BGP Check"
-echo "4) PSU / Power Check"
+echo "4) PSU / Fan Check"
 echo "5) Exit"
 echo "==========================================="
 
