@@ -18,7 +18,7 @@ read -p "ð Enter your choice: " CHOICE
 case $CHOICE in
 
 # =========================================================
-# 1️⃣ INTERFACE CHECKER (YOUR LOGIC - FIXED ONLY FOR LOGICAL)
+# 1️⃣ INTERFACE CHECKER
 # =========================================================
 1)
 read -p "ð« Enter Ticket ID: " TICKET
@@ -39,13 +39,10 @@ DESC_CLEAN=$(echo "$DESC" | tr '[:upper:]' '[:lower:]')
 if echo "$DESC_CLEAN" | grep -q "nbr="; then
 
     DEVICE1=$(echo "$DESC_CLEAN" | grep -oE '^[a-z0-9.-]+')
-
-    # ✅ Supports logical interface
     INTERFACE1=$(echo "$DESC_CLEAN" | grep -oE '(et|xe|ge)-[0-9/]+(:[0-9]+)?' | head -1)
 
     REMOTE=$(echo "$DESC_CLEAN" | grep -o 'nbr=[^,]*' | cut -d'=' -f2)
     DEVICE2=$(echo "$REMOTE" | cut -d':' -f1)
-
     INTERFACE2=$(echo "$REMOTE" | grep -oE '(et|xe|ge)-[0-9/]+(:[0-9]+)?')
 
 elif echo "$DESC_CLEAN" | grep -q "link down between"; then
@@ -63,7 +60,7 @@ else
     continue
 fi
 
-# Cleanup (keep :)
+# Cleanup
 INTERFACE1=$(echo "$INTERFACE1" | tr -cd 'a-z0-9/:-')
 INTERFACE2=$(echo "$INTERFACE2" | tr -cd 'a-z0-9/:-')
 
@@ -76,7 +73,7 @@ echo ""
 echo "DEVICE1: $DEVICE1 $INTERFACE1"
 echo "DEVICE2: $DEVICE2 $INTERFACE2"
 
-CMD_FILE="/tmp/reaper_cmds_$$.txt"
+CMD_FILE="/tmp/reaper_intf_$$.txt"
 
 cat <<EOF > "$CMD_FILE"
 show interfaces $INTERFACE1
@@ -97,13 +94,7 @@ EOF
 echo ""
 echo "ð Running Interface Check..."
 
-reaper \
-  -t "$DEVICE1,$DEVICE2" \
-  -p junos \
-  -o \
-  -ts \
-  -post "$TICKET" \
-  -cfile "$CMD_FILE"
+reaper -t "$DEVICE1,$DEVICE2" -p junos -o -ts -post "$TICKET" -cfile "$CMD_FILE"
 
 rm -f "$CMD_FILE"
 
@@ -111,46 +102,79 @@ echo "✅ Interface check completed"
 ;;
 
 # =========================================================
-# 2️⃣ OSPF CHECK (UNCHANGED)
+# 2️⃣ OSPF CHECK
 # =========================================================
 2)
 read -p "Enter details (Device;OSPF_IP;Ticket): " INPUT
 IFS=';' read -r DEVICE OSPF_IP TICKET <<< "$INPUT"
 
-reaper -t "$DEVICE" -p junos -o -ts -post "$TICKET" -c "
+if [[ -z "$DEVICE" || -z "$OSPF_IP" || -z "$TICKET" ]]; then
+    echo "❌ Missing input. Format: Device;OSPF_IP;Ticket"
+    continue
+fi
+
+CMD_FILE="/tmp/reaper_ospf_$$.txt"
+
+cat <<EOF > "$CMD_FILE"
 show ospf neighbor detail | match $OSPF_IP
 show configuration | display set | match deac
-"
+EOF
+
+reaper -t "$DEVICE" -p junos -o -ts -post "$TICKET" -cfile "$CMD_FILE"
+
+rm -f "$CMD_FILE"
 
 echo "✅ OSPF check completed"
 ;;
 
 # =========================================================
-# 3️⃣ BGP CHECK (UNCHANGED)
+# 3️⃣ BGP CHECK
 # =========================================================
 3)
 read -p "Enter details (Device;BGP_IP;Ticket): " INPUT
 IFS=';' read -r DEVICE BGP_IP TICKET <<< "$INPUT"
 
-reaper -t "$DEVICE" -p junos -o -ts -post "$TICKET" -c "
+if [[ -z "$DEVICE" || -z "$BGP_IP" || -z "$TICKET" ]]; then
+    echo "❌ Missing input. Format: Device;BGP_IP;Ticket"
+    continue
+fi
+
+CMD_FILE="/tmp/reaper_bgp_$$.txt"
+
+cat <<EOF > "$CMD_FILE"
 show bgp summary | match $BGP_IP
 show configuration | display set | match deac
-"
+EOF
+
+reaper -t "$DEVICE" -p junos -o -ts -post "$TICKET" -cfile "$CMD_FILE"
+
+rm -f "$CMD_FILE"
 
 echo "✅ BGP check completed"
 ;;
 
 # =========================================================
-# 4️⃣ PSU/FAN CHECK (UNCHANGED)
+# 4️⃣ PSU / FAN CHECK
 # =========================================================
 4)
 read -p "Enter details (Device;Ticket): " INPUT
 IFS=';' read -r DEVICE TICKET <<< "$INPUT"
 
-reaper -t "$DEVICE" -p junos -o -ts -post "$TICKET" -c "
-show chassis environment
+if [[ -z "$DEVICE" || -z "$TICKET" ]]; then
+    echo "❌ Missing input. Format: Device;Ticket"
+    continue
+fi
+
+CMD_FILE="/tmp/reaper_psu_$$.txt"
+
+cat <<EOF > "$CMD_FILE"
+show chassis environment | match "pem|fan"
 show log messages | match "fan|power"
-"
+EOF
+
+reaper -t "$DEVICE" -p junos -o -ts -post "$TICKET" -cfile "$CMD_FILE"
+
+rm -f "$CMD_FILE"
 
 echo "✅ PSU/FAN check completed"
 ;;
